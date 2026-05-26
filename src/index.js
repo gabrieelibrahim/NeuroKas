@@ -130,19 +130,38 @@ bot.start(async (ctx) => {
 });
 
 // Inline button actions
-bot.action('btn_saldo_awal', (ctx) => ctx.reply('Silakan ketik nominal saldo awal Anda.\nContoh: "+ saldo awal 5juta" atau "masuk saldo awal 5juta"'));
-bot.action('btn_catat', (ctx) => ctx.reply('Silakan ketik transaksi Anda.\nPengeluaran: "makan siang 25rb"\nPemasukan: "+ dapat bonus 50k"'));
-bot.action('btn_scan', (ctx) => ctx.reply('Fitur 📷 Scan Struk segera hadir.'));
+bot.action('btn_saldo_awal', async (ctx) => {
+  await ctx.deleteMessage().catch(() => {});
+  return ctx.reply('Silakan ketik nominal saldo awal Anda.\nContoh: "+ saldo awal 5juta" atau "masuk saldo awal 5juta"');
+});
+bot.action('btn_catat', async (ctx) => {
+  await ctx.deleteMessage().catch(() => {});
+  return ctx.reply('Silakan ketik transaksi Anda.\nPengeluaran: "makan siang 25rb"\nPemasukan: "+ dapat bonus 50k"');
+});
+bot.action('btn_scan', async (ctx) => {
+  await ctx.deleteMessage().catch(() => {});
+  return ctx.reply('Fitur 📷 Scan Struk segera hadir.');
+});
 bot.action('btn_saldo', async (ctx) => {
+  await ctx.deleteMessage().catch(() => {});
   const result = await getBalance(ctx.from.id);
   if (result.error) return ctx.reply('⚠️ Tidak dapat mengambil saldo.');
   const balance = result.balance || 0;
   const formatted = new Intl.NumberFormat('id-ID', { style: 'currency', currency: 'IDR' }).format(balance);
   return ctx.reply(`💰 Saldo Anda: ${formatted}`);
 });
-bot.action('btn_laporan', handleLaporan);
-bot.action('btn_insight', (ctx) => ctx.reply('Fitur 🤖 AI Insight segera hadir.'));
-bot.action('btn_bantuan', (ctx) => ctx.reply('Cukup ketik pengeluaran atau pemasukan Anda secara langsung (contoh: "makan 20rb"), dan AI akan mencatatnya.'));
+bot.action('btn_laporan', async (ctx) => {
+  await ctx.deleteMessage().catch(() => {});
+  return handleLaporan(ctx);
+});
+bot.action('btn_insight', async (ctx) => {
+  await ctx.deleteMessage().catch(() => {});
+  return ctx.reply('Fitur 🤖 AI Insight segera hadir.');
+});
+bot.action('btn_bantuan', async (ctx) => {
+  await ctx.deleteMessage().catch(() => {});
+  return ctx.reply('Cukup ketik pengeluaran atau pemasukan Anda secara langsung (contoh: "- makan 20rb" atau "+ gaji 5jt"), dan AI akan mencatatnya.');
+});
 
 // Helper to parse simple transaction messages like "makan siang 25rb"
 
