@@ -56,7 +56,7 @@ bot.start(async (ctx) => {
 
   await ctx.reply(featureMsg, {
     parse_mode: 'HTML',
-    reply_parameters: { message_id: welcomeMsg.message_id },
+    reply_to_message_id: welcomeMsg.message_id,
     reply_markup: {
       inline_keyboard: [
         [
