@@ -52,7 +52,8 @@ bot.on('text', async (ctx) => {
   const saveResult = await saveTransaction(ctx.from.id, parsed);
   if (saveResult.error) {
     logger.error('Gagal menyimpan transaksi', saveResult.error);
-    await ctx.reply('⚠️ Gagal menyimpan transaksi, coba lagi nanti.');
+    const errMsg = saveResult.error.message || JSON.stringify(saveResult.error);
+    await ctx.reply(`⚠️ Gagal menyimpan transaksi: ${errMsg}`);
     return;
   }
   await ctx.reply(`✅ Tercatat: ${parsed.description} - Rp${parsed.amount.toLocaleString()}`);
