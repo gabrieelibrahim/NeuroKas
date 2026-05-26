@@ -68,7 +68,7 @@ const handleLaporan = async (ctx) => {
   }
   
   let msg = `<blockquote>📊 <b>Laporan 5 Transaksi Terakhir</b>\n\n`;
-  txns.forEach((t) => {
+  txns.reverse().forEach((t) => {
     const sign = t.type === 'income' ? '+' : '-';
     const emoji = t.type === 'income' ? '📈' : '📉';
     const amount = new Intl.NumberFormat('id-ID').format(t.amount);
