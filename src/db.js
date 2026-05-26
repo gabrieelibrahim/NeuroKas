@@ -54,6 +54,7 @@ async function saveTransaction(telegramId, txn) {
       category: txn.category || 'Uncategorized',
       description: txn.description || null,
     })
+    .select()
     .single();
 
   return { data, error };
