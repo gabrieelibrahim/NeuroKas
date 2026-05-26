@@ -50,12 +50,6 @@ async function cleanChat(ctx) {
     }
   }
   userMessages.set(userId, []);
-  // Delete user's command message if possible
-  if (ctx.message) {
-    try {
-      await ctx.deleteMessage().catch(()=> { });
-    } catch (e) {}
-  }
 }
 
 bot.catch((err, ctx) => {
