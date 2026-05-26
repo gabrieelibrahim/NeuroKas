@@ -67,7 +67,7 @@ const handleLaporan = async (ctx) => {
     return ctx.reply('Belum ada catatan transaksi. Coba catat pengeluaran atau pemasukan pertama Anda!');
   }
   
-  let msg = `📊 <b>Laporan 5 Transaksi Terakhir</b>\n\n`;
+  let msg = `<blockquote>📊 <b>Laporan 5 Transaksi Terakhir</b>\n\n`;
   txns.forEach((t) => {
     const sign = t.type === 'income' ? '+' : '-';
     const emoji = t.type === 'income' ? '📈' : '📉';
@@ -76,7 +76,7 @@ const handleLaporan = async (ctx) => {
   });
   
   const formattedBalance = new Intl.NumberFormat('id-ID', { style: 'currency', currency: 'IDR' }).format(balance);
-  msg += `\n💰 <b>Total Saldo: ${formattedBalance}</b>`;
+  msg += `\n💰 <b>Total Saldo: ${formattedBalance}</b></blockquote>`;
   
   await ctx.reply(msg, { parse_mode: 'HTML' });
 };
