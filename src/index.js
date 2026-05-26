@@ -83,8 +83,8 @@ const handleLaporan = async (ctx) => {
 
 bot.command('laporan', handleLaporan);
 
-bot.start(async (ctx) => {
-  const name = ctx.from.first_name || ctx.from.username || 'Pengguna';
+const sendMainMenu = async (ctx) => {
+  const name = ctx.from?.first_name || ctx.from?.username || 'Pengguna';
   
   const combinedMsg = `👋 Halo <b>${name}</b>!\n` +
     `Selamat datang di NeuroKas —\nasisten pencatatan kas & keuangan berbasis AI.\n\n` +
@@ -127,28 +127,37 @@ bot.start(async (ctx) => {
       ]
     }
   });
+};
+
+bot.start(sendMainMenu);
+
+bot.action('btn_back', async (ctx) => {
+  await ctx.deleteMessage().catch(() => {});
+  return sendMainMenu(ctx);
 });
 
 // Inline button actions
+const backMarkup = { reply_markup: { inline_keyboard: [[{ text: '🔙 Kembali', callback_data: 'btn_back' }]] } };
+
 bot.action('btn_saldo_awal', async (ctx) => {
   await ctx.deleteMessage().catch(() => {});
-  return ctx.reply('Silakan ketik nominal saldo awal Anda.\nContoh: "+ saldo awal 5juta" atau "masuk saldo awal 5juta"');
+  return ctx.reply('Silakan ketik nominal saldo awal Anda.\nContoh: "+ saldo awal 5juta" atau "masuk saldo awal 5juta"', backMarkup);
 });
 bot.action('btn_catat', async (ctx) => {
   await ctx.deleteMessage().catch(() => {});
-  return ctx.reply('Silakan ketik transaksi Anda.\nPengeluaran: "makan siang 25rb"\nPemasukan: "+ dapat bonus 50k"');
+  return ctx.reply('Silakan ketik transaksi Anda.\nPengeluaran: "- makan siang 25rb"\nPemasukan: "+ dapat bonus 50k"', backMarkup);
 });
 bot.action('btn_scan', async (ctx) => {
   await ctx.deleteMessage().catch(() => {});
-  return ctx.reply('Fitur 📷 Scan Struk segera hadir.');
+  return ctx.reply('Fitur 📷 Scan Struk segera hadir.', backMarkup);
 });
 bot.action('btn_saldo', async (ctx) => {
   await ctx.deleteMessage().catch(() => {});
   const result = await getBalance(ctx.from.id);
-  if (result.error) return ctx.reply('⚠️ Tidak dapat mengambil saldo.');
+  if (result.error) return ctx.reply('⚠️ Tidak dapat mengambil saldo.', backMarkup);
   const balance = result.balance || 0;
   const formatted = new Intl.NumberFormat('id-ID', { style: 'currency', currency: 'IDR' }).format(balance);
-  return ctx.reply(`💰 Saldo Anda: ${formatted}`);
+  return ctx.reply(`💰 Saldo Anda: ${formatted}`, backMarkup);
 });
 bot.action('btn_laporan', async (ctx) => {
   await ctx.deleteMessage().catch(() => {});
@@ -156,11 +165,11 @@ bot.action('btn_laporan', async (ctx) => {
 });
 bot.action('btn_insight', async (ctx) => {
   await ctx.deleteMessage().catch(() => {});
-  return ctx.reply('Fitur 🤖 AI Insight segera hadir.');
+  return ctx.reply('Fitur 🤖 AI Insight segera hadir.', backMarkup);
 });
 bot.action('btn_bantuan', async (ctx) => {
   await ctx.deleteMessage().catch(() => {});
-  return ctx.reply('Cukup ketik pengeluaran atau pemasukan Anda secara langsung (contoh: "- makan 20rb" atau "+ gaji 5jt"), dan AI akan mencatatnya.');
+  return ctx.reply('Cukup ketik pengeluaran atau pemasukan Anda secara langsung (contoh: "- makan 20rb" atau "+ gaji 5jt"), dan AI akan mencatatnya.', backMarkup);
 });
 
 // Helper to parse simple transaction messages like "makan siang 25rb"
@@ -181,9 +190,12 @@ bot.on('text', async (ctx) => {
     return;
   }
   
+  // Hapus pesan user agar chat bersih
+  await ctx.deleteMessage().catch(() => {});
+
   const typeLabel = parsed.type === 'income' ? '📈 Pemasukan' : '📉 Pengeluaran';
   const sign = parsed.type === 'income' ? '+' : '-';
-  await ctx.reply(`✅ ${typeLabel}: ${parsed.description} (${sign}Rp${parsed.amount.toLocaleString()})`);
+  await ctx.reply(`✅ ${typeLabel}: ${parsed.description} (${sign}Rp${parsed.amount.toLocaleString('id-ID')})`);
 });
 
 bot.launch().then(async () => {
