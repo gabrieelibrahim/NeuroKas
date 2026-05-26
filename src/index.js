@@ -5,7 +5,7 @@ const pino = require('pino');
 const logger = pino();
 const rateLimit = require('telegraf-ratelimit');
 const { parseTransaction } = require('./parser');
-const { saveTransaction, getBalance } = require('./db');
+const { saveTransaction, getBalance, resetTransactions } = require('./db');
 
 const botToken = process.env.BOT_TOKEN;
 if (!botToken) {
@@ -36,6 +36,16 @@ bot.command('saldo', async (ctx) => {
   const balance = result.balance || 0;
   const formatted = new Intl.NumberFormat('id-ID', { style: 'currency', currency: 'IDR' }).format(balance);
   await ctx.reply(`💰 Saldo Anda: ${formatted}`);
+});
+
+// Command to reset all data
+bot.command('reset', async (ctx) => {
+  const result = await resetTransactions(ctx.from.id);
+  if (result.error) {
+    logger.error('Gagal mereset transaksi', result.error);
+    return ctx.reply('⚠️ Terjadi kesalahan saat menghapus data Anda.');
+  }
+  await ctx.reply('🗑️ Semua catatan transaksi (termasuk saldo awal) telah berhasil dihapus.\nSaldo Anda sekarang Rp0.');
 });
 bot.start(async (ctx) => {
   const name = ctx.from.first_name || ctx.from.username || 'Pengguna';

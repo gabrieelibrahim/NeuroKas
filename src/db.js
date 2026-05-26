@@ -83,4 +83,29 @@ async function getBalance(telegramId) {
   return { balance: data || 0 };
 }
 
-module.exports = { saveTransaction, getBalance };
+/**
+ * Delete all transactions for a given Telegram user.
+ * @param {number} telegramId
+ */
+async function resetTransactions(telegramId) {
+  const { data: user, error: userErr } = await supabase
+    .from('User')
+    .select('id')
+    .eq('telegram_id', telegramId)
+    .single();
+
+  if (userErr && userErr.code === 'PGRST116') {
+    return { success: true }; // No user, nothing to delete
+  }
+  if (userErr) return { error: userErr };
+
+  const { error } = await supabase
+    .from('Transaction')
+    .delete()
+    .eq('user_id', user.id);
+  
+  if (error) return { error };
+  return { success: true };
+}
+
+module.exports = { saveTransaction, getBalance, resetTransactions };
