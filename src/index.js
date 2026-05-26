@@ -127,7 +127,14 @@ bot.on('text', async (ctx) => {
   await ctx.reply(`✅ ${typeLabel}: ${parsed.description} (${sign}Rp${parsed.amount.toLocaleString()})`);
 });
 
-bot.launch().then(() => logger.info('🤖 Bot launched'));
+bot.launch().then(async () => {
+  await bot.telegram.setMyCommands([
+    { command: 'start', description: '🏠 Mulai & Lihat Menu' },
+    { command: 'saldo', description: '💰 Cek Saldo' },
+    { command: 'reset', description: '🗑️ Hapus Semua Catatan' },
+  ]);
+  logger.info('🤖 Bot launched');
+});
 
 process.once('SIGINT', () => bot.stop('SIGINT'));
 process.once('SIGTERM', () => bot.stop('SIGTERM'));
