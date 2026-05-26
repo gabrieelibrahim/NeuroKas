@@ -3,7 +3,6 @@ module.exports = {
     {
       name: "neurocash-ai",
       script: "src/index.js",
-      cwd: "D:/PROJECT UJI COBA/Kas",
       env: {
         NODE_ENV: "production",
         PORT: 3000
