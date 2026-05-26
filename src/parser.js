@@ -7,15 +7,14 @@ function parseTransaction(message) {
     textToParse = textToParse.substring(1).trim();
   }
   
-  const regex = /(.+?)\s+([\d.,]+)\s*(rb|k|ribu|juta)?/i;
+  const regex = /(.+?)\s+([\d.,]+)\s*(rb|k|ribu|juta|jt)?/i;
   const match = textToParse.match(regex);
   if (!match) return null;
   
   let amount = match[2].replace(/[.,]/g, '');
   const unit = match[3] ? match[3].toLowerCase() : '';
-  if (unit.startsWith('rb') || unit.startsWith('ribu')) amount = parseInt(amount) * 1000;
-  else if (unit.startsWith('k')) amount = parseInt(amount) * 1000;
-  else if (unit.startsWith('juta')) amount = parseInt(amount) * 1000000;
+  if (unit.startsWith('rb') || unit.startsWith('ribu') || unit.startsWith('k')) amount = parseInt(amount) * 1000;
+  else if (unit.startsWith('juta') || unit.startsWith('jt')) amount = parseInt(amount) * 1000000;
   else amount = parseInt(amount);
 
   let description = match[1].trim();
