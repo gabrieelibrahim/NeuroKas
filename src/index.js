@@ -60,9 +60,9 @@ bot.start(async (ctx) => {
     `• Insight AI keuangan\n` +
     `──────────────────\n` +
     `📖 <b>Cara Penggunaan</b>\n\n` +
-    `📉 <b>Pengeluaran</b> — langsung ketik:\n` +
-    `"makan siang 25rb"\n` +
-    `"bayar listrik 350k"\n\n` +
+    `📉 <b>Pengeluaran</b> — awali dengan -\n` +
+    `"- makan siang 25rb"\n` +
+    `"- bayar listrik 350k"\n\n` +
     `📈 <b>Pemasukan</b> — awali dengan +\n` +
     `"+ gaji 10jt"\n` +
     `"+ saldo awal 5juta"\n` +

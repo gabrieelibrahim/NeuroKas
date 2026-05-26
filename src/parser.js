@@ -5,6 +5,9 @@ function parseTransaction(message) {
   if (textToParse.startsWith('+')) {
     type = 'income';
     textToParse = textToParse.substring(1).trim();
+  } else if (textToParse.startsWith('-')) {
+    type = 'expense';
+    textToParse = textToParse.substring(1).trim();
   }
   
   const regex = /(.+?)\s+([\d.,]+)\s*(rb|k|ribu|juta|jt)?/i;
