@@ -1,6 +1,5 @@
 // src/db.js
 // Supabase client wrapper for NeuroCash AI bot
-// Stores transactions and provides query helpers.
 
 require('dotenv').config();
 const { createClient } = require('@supabase/supabase-js');
@@ -14,41 +13,75 @@ if (!supabaseUrl || !supabaseKey) {
 
 const supabase = createClient(supabaseUrl, supabaseKey);
 
-/**
- * Save a transaction for a given Telegram user.
- * @param {number} telegramId - Telegram user ID (bigint)
- * @param {{description:string, amount:number, type?:string, category?:string}} txn
- * @returns {Promise<object>} result object containing data or error
- */
-async function saveTransaction(telegramId, txn) {
-  // Resolve user id (internal) or create user if not exists
-  const { data: user, error: userErr } = await supabase
+// Get or Create user context (User + Active Workspace)
+async function getUserContext(telegramId) {
+  let { data: user, error: userErr } = await supabase
     .from('User')
-    .select('id')
+    .select('*')
     .eq('telegram_id', telegramId)
     .single();
 
-  if (userErr && userErr.code !== 'PGRST116') {
-    // Unexpected error
-    return { error: userErr };
-  }
-
-  let userId = user?.id;
-  if (!userId) {
-    // Create user record
+  if (userErr && userErr.code === 'PGRST116') {
+    // Create new user
     const { data: newUser, error: createErr } = await supabase
       .from('User')
       .insert({ telegram_id: telegramId })
-      .select('id')
+      .select('*')
       .single();
     if (createErr) return { error: createErr };
-    userId = newUser.id;
+    user = newUser;
+  } else if (userErr) {
+    return { error: userErr };
   }
 
+  // Check if active workspace exists
+  if (!user.active_workspace_id) {
+    let { data: workspaces } = await supabase
+      .from('Workspace')
+      .select('*')
+      .eq('owner_id', user.id)
+      .limit(1);
+    
+    let activeWs;
+    if (!workspaces || workspaces.length === 0) {
+      // Create default Workspace
+      const { data: newWs } = await supabase
+        .from('Workspace')
+        .insert({ owner_id: user.id, name: 'Kas Pribadi', icon: '💰' })
+        .select('*')
+        .single();
+      activeWs = newWs;
+    } else {
+      activeWs = workspaces[0];
+    }
+    
+    if (activeWs) {
+      await supabase.from('User').update({ active_workspace_id: activeWs.id }).eq('id', user.id);
+      user.active_workspace_id = activeWs.id;
+      return { user, activeWorkspace: activeWs };
+    }
+  }
+
+  // Fetch the active workspace object
+  const { data: ws } = await supabase
+    .from('Workspace')
+    .select('*')
+    .eq('id', user.active_workspace_id)
+    .single();
+    
+  return { user, activeWorkspace: ws };
+}
+
+// Transaction operations
+async function saveTransaction(telegramId, txn) {
+  const { user, activeWorkspace, error: ctxErr } = await getUserContext(telegramId);
+  if (ctxErr) return { error: ctxErr };
+  
   const { data, error } = await supabase
     .from('Transaction')
     .insert({
-      user_id: userId,
+      user_id: user.id,
+      workspace_id: activeWorkspace.id,
       type: txn.type || 'expense',
       amount: txn.amount,
       category: txn.category || 'Uncategorized',
@@ -57,83 +90,107 @@ async function saveTransaction(telegramId, txn) {
     .select()
     .single();
 
-  return { data, error };
+  return { data, activeWorkspace, error };
 }
 
-/**
- * Get balance (sum of amounts) for a Telegram user.
- * @param {number} telegramId
- * @returns {Promise<number>} total balance (positive = income, negative = expense)
- */
 async function getBalance(telegramId) {
-  const { data: user, error: userErr } = await supabase
-    .from('User')
-    .select('id')
-    .eq('telegram_id', telegramId)
-    .single();
+  const { user, activeWorkspace, error: ctxErr } = await getUserContext(telegramId);
+  if (ctxErr) return { error: ctxErr };
 
-  if (userErr && userErr.code === 'PGRST116') {
-    return { balance: 0 };
-  }
-  if (userErr) return { error: userErr };
-
+  // Assume the SQL function get_user_balance has been updated to accept uid and wid
   const { data, error } = await supabase
-    .rpc('get_user_balance', { uid: user.id }); // assumes a Postgres function
+    .rpc('get_user_balance', { uid: user.id, wid: activeWorkspace.id });
   if (error) return { error };
-  return { balance: data || 0 };
+  return { balance: data || 0, activeWorkspace };
 }
 
-/**
- * Delete all transactions for a given Telegram user.
- * @param {number} telegramId
- */
-async function resetTransactions(telegramId) {
-  const { data: user, error: userErr } = await supabase
-    .from('User')
-    .select('id')
-    .eq('telegram_id', telegramId)
-    .single();
-
-  if (userErr && userErr.code === 'PGRST116') {
-    return { success: true }; // No user, nothing to delete
-  }
-  if (userErr) return { error: userErr };
-
-  const { error } = await supabase
-    .from('Transaction')
-    .delete()
-    .eq('user_id', user.id);
-  
-  if (error) return { error };
-  return { success: true };
-}
-
-/**
- * Get recent transactions for a given Telegram user.
- * @param {number} telegramId
- * @param {number} limit
- */
 async function getRecentTransactions(telegramId, limit = 5) {
-  const { data: user, error: userErr } = await supabase
-    .from('User')
-    .select('id')
-    .eq('telegram_id', telegramId)
-    .single();
-
-  if (userErr && userErr.code === 'PGRST116') {
-    return { data: [] };
-  }
-  if (userErr) return { error: userErr };
+  const { user, activeWorkspace, error: ctxErr } = await getUserContext(telegramId);
+  if (ctxErr) return { error: ctxErr };
 
   const { data, error } = await supabase
     .from('Transaction')
     .select('*')
     .eq('user_id', user.id)
+    .eq('workspace_id', activeWorkspace.id)
     .order('created_at', { ascending: false })
     .limit(limit);
     
   if (error) return { error };
-  return { data };
+  return { data, activeWorkspace };
 }
 
-module.exports = { saveTransaction, getBalance, resetTransactions, getRecentTransactions };
+async function resetTransactions(telegramId) {
+  const { user, activeWorkspace, error: ctxErr } = await getUserContext(telegramId);
+  if (ctxErr) return { error: ctxErr };
+
+  const { error } = await supabase
+    .from('Transaction')
+    .delete()
+    .eq('user_id', user.id)
+    .eq('workspace_id', activeWorkspace.id);
+  
+  if (error) return { error };
+  return { success: true };
+}
+
+// Workspace operations
+async function getWorkspaces(telegramId) {
+  const { user, error: ctxErr } = await getUserContext(telegramId);
+  if (ctxErr) return { error: ctxErr };
+  
+  const { data, error } = await supabase
+    .from('Workspace')
+    .select('*')
+    .eq('owner_id', user.id)
+    .order('created_at', { ascending: true });
+    
+  return { data, activeWorkspaceId: user.active_workspace_id, error };
+}
+
+async function setActiveWorkspace(telegramId, workspaceId) {
+  const { data: user, error: userErr } = await supabase
+    .from('User')
+    .select('id')
+    .eq('telegram_id', telegramId)
+    .single();
+  if (userErr) return { error: userErr };
+  
+  const { error } = await supabase
+    .from('User')
+    .update({ active_workspace_id: workspaceId })
+    .eq('id', user.id);
+    
+  return { error };
+}
+
+async function createWorkspace(telegramId, name, icon = '📂') {
+  const { data: user, error: userErr } = await supabase
+    .from('User')
+    .select('id')
+    .eq('telegram_id', telegramId)
+    .single();
+  if (userErr) return { error: userErr };
+  
+  const { data, error } = await supabase
+    .from('Workspace')
+    .insert({ owner_id: user.id, name, icon })
+    .select('*')
+    .single();
+    
+  if (!error && data) {
+    await setActiveWorkspace(telegramId, data.id);
+  }
+  return { data, error };
+}
+
+module.exports = { 
+  getUserContext,
+  saveTransaction, 
+  getBalance, 
+  resetTransactions, 
+  getRecentTransactions,
+  getWorkspaces,
+  setActiveWorkspace,
+  createWorkspace
+};

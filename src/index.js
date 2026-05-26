@@ -1,11 +1,19 @@
 require('dotenv').config();
-const { Telegraf } = require('telegraf');
-const axios = require('axios');
+const { Telegraf, Markup } = require('telegraf');
 const pino = require('pino');
 const logger = pino();
 const rateLimit = require('telegraf-ratelimit');
 const { parseTransaction } = require('./parser');
-const { saveTransaction, getBalance, resetTransactions, getRecentTransactions } = require('./db');
+const { 
+  getUserContext,
+  saveTransaction, 
+  getBalance, 
+  resetTransactions, 
+  getRecentTransactions,
+  getWorkspaces,
+  setActiveWorkspace,
+  createWorkspace
+} = require('./db');
 
 const botToken = process.env.BOT_TOKEN;
 if (!botToken) {
@@ -14,60 +22,86 @@ if (!botToken) {
 }
 
 const bot = new Telegraf(botToken);
-// Global middlewares
+
 bot.use(rateLimit({
   window: 60_000, // 1 menit
   limit: 20,      // maks 20 per menit per user
   keyGenerator: (ctx) => ctx.from?.id.toString() || 'anonymous'
 }));
 
-// Error handling
+// Tracking bot messages for cleanup
+const userMessages = new Map();
+
+function trackMessage(userId, messageId) {
+  if (!userMessages.has(userId)) {
+    userMessages.set(userId, []);
+  }
+  userMessages.get(userId).push(messageId);
+}
+
+async function cleanChat(ctx) {
+  const userId = ctx.from.id;
+  const msgs = userMessages.get(userId) || [];
+  for (const msgId of msgs) {
+    try {
+      await ctx.telegram.deleteMessage(ctx.chat.id, msgId);
+    } catch (e) {
+      // Ignore if message already deleted or too old
+    }
+  }
+  userMessages.set(userId, []);
+  // Delete user's command message if possible
+  if (ctx.message) {
+    try {
+      await ctx.deleteMessage().catch(()=> { });
+    } catch (e) {}
+  }
+}
+
 bot.catch((err, ctx) => {
   logger.error('Bot error', err);
 });
 
-// Command to show balance
-bot.command('saldo', async (ctx) => {
-  const result = await getBalance(ctx.from.id);
-  if (result.error) {
-    logger.error('Gagal mendapatkan saldo', result.error);
-    return ctx.reply('⚠️ Tidak dapat mengambil saldo.');
-  }
-  const balance = result.balance || 0;
-  const formatted = new Intl.NumberFormat('id-ID', { style: 'currency', currency: 'IDR' }).format(balance);
-  await ctx.reply(`💰 Saldo Anda: ${formatted}`);
+bot.command('clear', async (ctx) => {
+  await cleanChat(ctx);
+  await sendMainMenu(ctx);
 });
 
-// Command to reset all data
+bot.command('saldo', async (ctx) => {
+  const { balance, activeWorkspace, error } = await getBalance(ctx.from.id);
+  if (error) {
+    return ctx.reply('⚠️ Tidak dapat mengambil saldo.');
+  }
+  const formatted = new Intl.NumberFormat('id-ID', { style: 'currency', currency: 'IDR' }).format(balance);
+  const m = await ctx.reply(`💰 Saldo [${activeWorkspace.name}]: ${formatted}`);
+  trackMessage(ctx.from.id, m.message_id);
+});
+
 bot.command('reset', async (ctx) => {
   const result = await resetTransactions(ctx.from.id);
   if (result.error) {
-    logger.error('Gagal mereset transaksi', result.error);
     return ctx.reply('⚠️ Terjadi kesalahan saat menghapus data Anda.');
   }
-  await ctx.reply('🗑️ Semua catatan transaksi (termasuk saldo awal) telah berhasil dihapus.\nSaldo Anda sekarang Rp0.');
+  const m = await ctx.reply('🗑️ Semua catatan transaksi pada Kas ini telah berhasil dihapus.\nSaldo Anda sekarang Rp0.');
+  trackMessage(ctx.from.id, m.message_id);
 });
 
-// Laporan logic
 const handleLaporan = async (ctx) => {
   const telId = ctx.from.id;
-  const [balanceRes, txnsRes] = await Promise.all([
-    getBalance(telId),
-    getRecentTransactions(telId, 5)
-  ]);
+  const { data: txns, activeWorkspace, error: txnsErr } = await getRecentTransactions(telId, 5);
+  const { balance, error: balanceErr } = await getBalance(telId);
   
-  if (balanceRes.error || txnsRes.error) {
+  if (txnsErr || balanceErr) {
     return ctx.reply('⚠️ Terjadi kesalahan saat mengambil laporan.');
   }
   
-  const balance = balanceRes.balance || 0;
-  const txns = txnsRes.data || [];
-  
-  if (txns.length === 0) {
-    return ctx.reply('Belum ada catatan transaksi. Coba catat pengeluaran atau pemasukan pertama Anda!');
+  if (!txns || txns.length === 0) {
+    const m = await ctx.reply(`Belum ada transaksi di [${activeWorkspace.name}].`);
+    trackMessage(telId, m.message_id);
+    return;
   }
   
-  let msg = `<blockquote>📊 <b>Laporan 5 Transaksi Terakhir</b>\n\n`;
+  let msg = `<blockquote>📊 <b>Laporan 5 Transaksi Terakhir (${activeWorkspace.name})</b>\n\n`;
   txns.reverse().forEach((t) => {
     const sign = t.type === 'income' ? '+' : '-';
     const emoji = t.type === 'income' ? '📈' : '📉';
@@ -78,40 +112,37 @@ const handleLaporan = async (ctx) => {
   const formattedBalance = new Intl.NumberFormat('id-ID', { style: 'currency', currency: 'IDR' }).format(balance);
   msg += `\n💰 <b>Total Saldo: ${formattedBalance}</b></blockquote>`;
   
-  await ctx.reply(msg, { parse_mode: 'HTML' });
+  const m = await ctx.reply(msg, { parse_mode: 'HTML' });
+  trackMessage(telId, m.message_id);
 };
 
 bot.command('laporan', handleLaporan);
 
 const sendMainMenu = async (ctx) => {
+  const telId = ctx.from.id;
   const name = ctx.from?.first_name || ctx.from?.username || 'Pengguna';
   
-  const combinedMsg = `👋 Halo <b>${name}</b>!\n` +
-    `Selamat datang di NeuroKas —\nasisten pencatatan kas & keuangan berbasis AI.\n\n` +
+  const { activeWorkspace, error } = await getUserContext(telId);
+  if (error) {
+    return ctx.reply('⚠️ Gagal memuat data kas.');
+  }
+
+  const wsName = activeWorkspace ? activeWorkspace.name : 'Belum ada Kas';
+  
+  const combinedMsg = `👋 Welcome back <b>${name}</b>!\n\n` +
+    `📂 Workspace aktif:\n<b>${activeWorkspace?.icon || '📁'} ${wsName}</b>\n\n` +
     `<blockquote expandable>` +
-    `✨ <b>Fitur NeuroKas</b>\n` +
-    `• Catat transaksi otomatis\n` +
-    `• Scan foto struk\n` +
-    `• Cek saldo & laporan\n` +
-    `• Insight AI keuangan\n` +
-    `──────────────────\n` +
-    `📖 <b>Cara Penggunaan</b>\n\n` +
-    `📉 <b>Pengeluaran</b> — awali dengan -\n` +
+    `✨ <b>Quick Tips</b>\n` +
+    `Ketik transaksi langsung:\n` +
     `"- makan siang 25rb"\n` +
-    `"- bayar listrik 350k"\n\n` +
-    `📈 <b>Pemasukan</b> — awali dengan +\n` +
     `"+ gaji 10jt"\n` +
-    `"+ saldo awal 5juta"\n` +
     `⠀⠀⠀⠀⠀⠀⠀⠀⠀⠀⠀⠀⠀⠀⠀⠀⠀⠀⠀⠀⠀⠀⠀⠀` +
     `</blockquote>`;
 
-  await ctx.reply(combinedMsg, {
+  const m = await ctx.reply(combinedMsg, {
     parse_mode: 'HTML',
     reply_markup: {
       inline_keyboard: [
-        [
-          { text: '🏦 Catat Saldo Awal', callback_data: 'btn_saldo_awal' }
-        ],
         [
           { text: '➕ Catat Transaksi', callback_data: 'btn_catat' },
           { text: '📷 Scan Struk', callback_data: 'btn_scan' }
@@ -122,42 +153,44 @@ const sendMainMenu = async (ctx) => {
         ],
         [
           { text: '🤖 AI Insight', callback_data: 'btn_insight' },
-          { text: '❓ Bantuan', callback_data: 'btn_bantuan' }
+          { text: '📂 Ganti Kas', callback_data: 'btn_ganti_kas' }
         ]
       ]
     }
   });
+  
+  trackMessage(telId, m.message_id);
 };
 
-bot.start(sendMainMenu);
+bot.start(async (ctx) => {
+  await cleanChat(ctx);
+  await sendMainMenu(ctx);
+});
+
+const backMarkup = { reply_markup: { inline_keyboard: [[{ text: '🔙 Kembali', callback_data: 'btn_back' }]] } };
 
 bot.action('btn_back', async (ctx) => {
   await ctx.deleteMessage().catch(() => {});
   return sendMainMenu(ctx);
 });
 
-// Inline button actions
-const backMarkup = { reply_markup: { inline_keyboard: [[{ text: '🔙 Kembali', callback_data: 'btn_back' }]] } };
-
-bot.action('btn_saldo_awal', async (ctx) => {
-  await ctx.deleteMessage().catch(() => {});
-  return ctx.reply('Silakan ketik nominal saldo awal Anda.\nContoh: "+ saldo awal 5juta" atau "masuk saldo awal 5juta"', backMarkup);
-});
 bot.action('btn_catat', async (ctx) => {
   await ctx.deleteMessage().catch(() => {});
-  return ctx.reply('Silakan ketik transaksi Anda.\nPengeluaran: "- makan siang 25rb"\nPemasukan: "+ dapat bonus 50k"', backMarkup);
+  const m = await ctx.reply('Silakan ketik transaksi Anda.\nPengeluaran: "- makan siang 25rb"\nPemasukan: "+ dapat bonus 50k"', backMarkup);
+  trackMessage(ctx.from.id, m.message_id);
 });
 bot.action('btn_scan', async (ctx) => {
   await ctx.deleteMessage().catch(() => {});
-  return ctx.reply('Fitur 📷 Scan Struk segera hadir.', backMarkup);
+  const m = await ctx.reply('Fitur 📷 Scan Struk (NeuroKas Pro) segera hadir.', backMarkup);
+  trackMessage(ctx.from.id, m.message_id);
 });
 bot.action('btn_saldo', async (ctx) => {
   await ctx.deleteMessage().catch(() => {});
-  const result = await getBalance(ctx.from.id);
-  if (result.error) return ctx.reply('⚠️ Tidak dapat mengambil saldo.', backMarkup);
-  const balance = result.balance || 0;
-  const formatted = new Intl.NumberFormat('id-ID', { style: 'currency', currency: 'IDR' }).format(balance);
-  return ctx.reply(`💰 Saldo Anda: ${formatted}`, backMarkup);
+  const { balance, activeWorkspace, error } = await getBalance(ctx.from.id);
+  if (error) return ctx.reply('⚠️ Tidak dapat mengambil saldo.', backMarkup);
+  const formatted = new Intl.NumberFormat('id-ID', { style: 'currency', currency: 'IDR' }).format(balance || 0);
+  const m = await ctx.reply(`💰 Saldo [${activeWorkspace.name}]: ${formatted}`, backMarkup);
+  trackMessage(ctx.from.id, m.message_id);
 });
 bot.action('btn_laporan', async (ctx) => {
   await ctx.deleteMessage().catch(() => {});
@@ -165,45 +198,114 @@ bot.action('btn_laporan', async (ctx) => {
 });
 bot.action('btn_insight', async (ctx) => {
   await ctx.deleteMessage().catch(() => {});
-  return ctx.reply('Fitur 🤖 AI Insight segera hadir.', backMarkup);
+  const m = await ctx.reply('Fitur 🤖 AI Insight khusus untuk workspace sedang dipersiapkan.', backMarkup);
+  trackMessage(ctx.from.id, m.message_id);
 });
-bot.action('btn_bantuan', async (ctx) => {
+
+bot.action('btn_ganti_kas', async (ctx) => {
   await ctx.deleteMessage().catch(() => {});
-  return ctx.reply('Cukup ketik pengeluaran atau pemasukan Anda secara langsung (contoh: "- makan 20rb" atau "+ gaji 5jt"), dan AI akan mencatatnya.', backMarkup);
-});
-
-// Helper to parse simple transaction messages like "makan siang 25rb"
-
-bot.on('text', async (ctx) => {
-  const text = ctx.message.text.trim();
-  const parsed = parseTransaction(text);
-  if (!parsed) {
-    await ctx.reply('⚠️ Tidak dapat mengerti transaksi. Kirim contoh: "makan siang 25rb"');
-    return;
-  }
-  // Simpan ke Supabase DB dengan user_id = ctx.from.id
-  const saveResult = await saveTransaction(ctx.from.id, parsed);
-  if (saveResult.error) {
-    logger.error('Gagal menyimpan transaksi', saveResult.error);
-    const errMsg = saveResult.error.message || JSON.stringify(saveResult.error);
-    await ctx.reply(`⚠️ Gagal menyimpan transaksi: ${errMsg}`);
+  const { data: workspaces, activeWorkspaceId, error } = await getWorkspaces(ctx.from.id);
+  
+  if (error || !workspaces) {
+    const m = await ctx.reply('⚠️ Gagal mengambil daftar Kas.', backMarkup);
+    trackMessage(ctx.from.id, m.message_id);
     return;
   }
   
-  // Hapus pesan user agar chat bersih
+  const buttons = workspaces.map(ws => {
+    const isActive = ws.id === activeWorkspaceId;
+    return [{
+      text: `${ws.icon} ${ws.name} ${isActive ? '✅' : ''}`,
+      callback_data: `sel_ws_${ws.id}`
+    }];
+  });
+  
+  buttons.push([{ text: '➕ Buat Kas Baru', callback_data: 'btn_new_kas' }]);
+  buttons.push([{ text: '🔙 Kembali', callback_data: 'btn_back' }]);
+  
+  const m = await ctx.reply('📂 Pilih Kas yang ingin Anda gunakan:', {
+    reply_markup: {
+      inline_keyboard: buttons
+    }
+  });
+  trackMessage(ctx.from.id, m.message_id);
+});
+
+bot.action(/sel_ws_(.+)/, async (ctx) => {
+  const wsId = ctx.match[1];
+  await setActiveWorkspace(ctx.from.id, wsId);
+  await ctx.answerCbQuery('✅ Kas berhasil diganti');
+  await ctx.deleteMessage().catch(() => {});
+  await sendMainMenu(ctx);
+});
+
+// Simple state for creating new kas
+const userState = new Map();
+
+bot.action('btn_new_kas', async (ctx) => {
+  await ctx.deleteMessage().catch(() => {});
+  userState.set(ctx.from.id, 'WAITING_KAS_NAME');
+  const m = await ctx.reply('Silakan ketik NAMA KAS BARU yang ingin Anda buat (contoh: "Kas Komunitas A"):', {
+    reply_markup: { inline_keyboard: [[{ text: '❌ Batal', callback_data: 'btn_cancel_kas' }]] }
+  });
+  trackMessage(ctx.from.id, m.message_id);
+});
+
+bot.action('btn_cancel_kas', async (ctx) => {
+  userState.delete(ctx.from.id);
+  await ctx.deleteMessage().catch(() => {});
+  return sendMainMenu(ctx);
+});
+
+bot.on('text', async (ctx) => {
+  const text = ctx.message.text.trim();
+  const state = userState.get(ctx.from.id);
+  
+  if (state === 'WAITING_KAS_NAME') {
+    userState.delete(ctx.from.id);
+    await ctx.deleteMessage().catch(() => {}); // delete user msg
+    const { error } = await createWorkspace(ctx.from.id, text);
+    if (error) {
+      const m = await ctx.reply('⚠️ Gagal membuat kas baru.');
+      trackMessage(ctx.from.id, m.message_id);
+      return sendMainMenu(ctx);
+    }
+    const m = await ctx.reply(`✅ Kas "${text}" berhasil dibuat dan diaktifkan.`);
+    trackMessage(ctx.from.id, m.message_id);
+    return sendMainMenu(ctx);
+  }
+
+  const parsed = parseTransaction(text);
+  if (!parsed) {
+    const m = await ctx.reply('⚠️ Tidak dapat mengerti transaksi. Kirim contoh: "makan siang 25rb"');
+    trackMessage(ctx.from.id, m.message_id);
+    return;
+  }
+  
+  const { data, activeWorkspace, error } = await saveTransaction(ctx.from.id, parsed);
+  if (error) {
+    logger.error('Gagal menyimpan transaksi', error);
+    const errMsg = error.message || JSON.stringify(error);
+    const m = await ctx.reply(`⚠️ Gagal menyimpan transaksi: ${errMsg}`);
+    trackMessage(ctx.from.id, m.message_id);
+    return;
+  }
+  
   await ctx.deleteMessage().catch(() => {});
 
   const typeLabel = parsed.type === 'income' ? '📈 Pemasukan' : '📉 Pengeluaran';
   const sign = parsed.type === 'income' ? '+' : '-';
-  await ctx.reply(`✅ ${typeLabel}: ${parsed.description} (${sign}Rp${parsed.amount.toLocaleString('id-ID')})`);
+  const m = await ctx.reply(`✅ ${typeLabel}: ${parsed.description} (${sign}Rp${parsed.amount.toLocaleString('id-ID')})\n📂 [${activeWorkspace.name}]`);
+  trackMessage(ctx.from.id, m.message_id);
 });
 
 bot.launch().then(async () => {
   await bot.telegram.setMyCommands([
     { command: 'start', description: '🏠 Mulai & Lihat Menu' },
-    { command: 'saldo', description: '💰 Cek Saldo' },
-    { command: 'laporan', description: '📊 Lihat Laporan Transaksi' },
-    { command: 'reset', description: '🗑️ Hapus Semua Catatan' },
+    { command: 'clear', description: '🧹 Bersihkan Chat (UI Saja)' },
+    { command: 'saldo', description: '💰 Cek Saldo Kas Aktif' },
+    { command: 'laporan', description: '📊 Laporan Transaksi Kas Aktif' },
+    { command: 'reset', description: '🗑️ Hapus Catatan Kas Aktif' },
   ]);
   try {
     await bot.telegram.callApi('setChatMenuButton', {
