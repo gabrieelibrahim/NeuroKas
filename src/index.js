@@ -60,6 +60,9 @@ bot.start(async (ctx) => {
     reply_markup: {
       inline_keyboard: [
         [
+          { text: '🏦 Catat Saldo Awal', callback_data: 'btn_saldo_awal' }
+        ],
+        [
           { text: '➕ Catat Transaksi', callback_data: 'btn_catat' },
           { text: '📷 Scan Struk', callback_data: 'btn_scan' }
         ],
@@ -77,6 +80,7 @@ bot.start(async (ctx) => {
 });
 
 // Inline button actions (Placeholders for features not yet built)
+bot.action('btn_saldo_awal', (ctx) => ctx.reply('Fitur 🏦 Catat Saldo Awal segera hadir.'));
 bot.action('btn_catat', (ctx) => ctx.reply('Silakan ketik transaksi Anda, contoh: "makan siang 25rb"'));
 bot.action('btn_scan', (ctx) => ctx.reply('Fitur 📷 Scan Struk segera hadir.'));
 bot.action('btn_saldo', async (ctx) => {
