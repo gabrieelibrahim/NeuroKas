@@ -59,9 +59,13 @@ bot.start(async (ctx) => {
     `• Cek saldo & laporan\n` +
     `• Insight AI keuangan\n` +
     `──────────────────\n` +
-    `📖 <b>Contoh penggunaan</b>\n` +
+    `📖 <b>Cara Penggunaan</b>\n\n` +
+    `📉 <b>Pengeluaran</b> — langsung ketik:\n` +
     `"makan siang 25rb"\n` +
-    `"gaji masuk 5 juta"\n` +
+    `"bayar listrik 350k"\n\n` +
+    `📈 <b>Pemasukan</b> — awali dengan +\n` +
+    `"+ gaji 10jt"\n` +
+    `"+ saldo awal 5juta"\n` +
     `⠀⠀⠀⠀⠀⠀⠀⠀⠀⠀⠀⠀⠀⠀⠀⠀⠀⠀⠀⠀⠀⠀⠀⠀` +
     `</blockquote>`;
 
