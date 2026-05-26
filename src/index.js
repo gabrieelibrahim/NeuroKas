@@ -42,6 +42,7 @@ bot.start(async (ctx) => {
   
   const combinedMsg = `👋 Halo <b>${name}</b>!\n` +
     `Selamat datang di NeuroKas —\nasisten pencatatan kas & keuangan berbasis AI.\n\n` +
+    `<blockquote expandable>` +
     `✨ <b>Fitur NeuroKas</b>\n` +
     `• Catat transaksi otomatis\n` +
     `• Scan foto struk\n` +
@@ -49,7 +50,8 @@ bot.start(async (ctx) => {
     `• Insight AI keuangan\n\n` +
     `📖 <b>Contoh penggunaan</b>\n` +
     `"makan siang 25rb"\n` +
-    `"gaji masuk 5 juta"`;
+    `"gaji masuk 5 juta"` +
+    `</blockquote>`;
 
   await ctx.reply(combinedMsg, {
     parse_mode: 'HTML',
