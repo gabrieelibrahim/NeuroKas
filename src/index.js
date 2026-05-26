@@ -133,6 +133,7 @@ bot.launch().then(async () => {
     { command: 'saldo', description: '💰 Cek Saldo' },
     { command: 'reset', description: '🗑️ Hapus Semua Catatan' },
   ]);
+  await bot.telegram.setChatMenuButton({ menu_button: { type: 'commands' } });
   logger.info('🤖 Bot launched');
 });
 
