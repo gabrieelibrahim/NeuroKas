@@ -153,6 +153,9 @@ const sendMainMenu = async (ctx) => {
     reply_markup: {
       inline_keyboard: [
         [
+          { text: '➕ Tambahkan saldo awal', callback_data: 'btn_saldo_awal' }
+        ],
+        [
           { text: '➕ Catat Transaksi', callback_data: 'btn_catat' },
           { text: '📷 Scan Struk', callback_data: 'btn_scan' }
         ],
@@ -181,6 +184,15 @@ const backMarkup = { reply_markup: { inline_keyboard: [[{ text: '🔙 Kembali', 
 bot.action('btn_back', async (ctx) => {
   await ctx.deleteMessage().catch(() => {});
   return sendMainMenu(ctx);
+});
+
+bot.action('btn_saldo_awal', async (ctx) => {
+  await ctx.deleteMessage().catch(() => {});
+  userState.set(ctx.from.id, 'WAITING_SALDO_AWAL');
+  const m = await ctx.reply('Silakan masukkan nominal saldo awal Anda (contoh: 50000 atau 50k):', {
+    reply_markup: { inline_keyboard: [[{ text: '❌ Batal', callback_data: 'btn_cancel_kas' }]] }
+  });
+  trackMessage(ctx.from.id, m.message_id);
 });
 
 bot.action('btn_catat', async (ctx) => {
@@ -270,6 +282,30 @@ bot.on('text', async (ctx) => {
   const text = ctx.message.text.trim();
   const state = userState.get(ctx.from.id);
   
+  if (state === 'WAITING_SALDO_AWAL') {
+    userState.delete(ctx.from.id);
+    await ctx.deleteMessage().catch(() => {});
+    
+    const parsed = parseTransaction(`+ saldo awal ${text}`);
+    if (!parsed) {
+      const m = await ctx.reply('⚠️ Nominal tidak valid. Gagal menambahkan saldo awal.');
+      trackMessage(ctx.from.id, m.message_id);
+      return sendMainMenu(ctx);
+    }
+    
+    const { data, activeWorkspace, error } = await saveTransaction(ctx.from.id, parsed);
+    if (error) {
+      const m = await ctx.reply('⚠️ Gagal menyimpan saldo awal.');
+      trackMessage(ctx.from.id, m.message_id);
+      return sendMainMenu(ctx);
+    }
+    
+    const sign = parsed.type === 'income' ? '+' : '-';
+    const m = await ctx.reply(`✅ Saldo awal berhasil ditambahkan (${sign}Rp${parsed.amount.toLocaleString('id-ID')})\n📂 [${activeWorkspace.name}]`);
+    trackMessage(ctx.from.id, m.message_id);
+    return sendMainMenu(ctx);
+  }
+
   if (state === 'WAITING_KAS_NAME') {
     userState.delete(ctx.from.id);
     await ctx.deleteMessage().catch(() => {}); // delete user msg
