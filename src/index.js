@@ -47,10 +47,12 @@ bot.start(async (ctx) => {
     `• Catat transaksi otomatis\n` +
     `• Scan foto struk\n` +
     `• Cek saldo & laporan\n` +
-    `• Insight AI keuangan\n\n` +
+    `• Insight AI keuangan\n` +
+    `──────────────────\n` +
     `📖 <b>Contoh penggunaan</b>\n` +
     `"makan siang 25rb"\n` +
-    `"gaji masuk 5 juta"` +
+    `"gaji masuk 5 juta"\n` +
+    `⠀⠀⠀⠀⠀⠀⠀⠀⠀⠀⠀⠀⠀⠀⠀⠀⠀⠀⠀⠀⠀⠀⠀⠀` +
     `</blockquote>`;
 
   await ctx.reply(combinedMsg, {
