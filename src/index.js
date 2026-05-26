@@ -37,7 +37,58 @@ bot.command('saldo', async (ctx) => {
   const formatted = new Intl.NumberFormat('id-ID', { style: 'currency', currency: 'IDR' }).format(balance);
   await ctx.reply(`💰 Saldo Anda: ${formatted}`);
 });
-bot.start((ctx) => ctx.reply('👋 Selamat datang! Bot siap mencatat transaksi Anda.'));
+bot.start(async (ctx) => {
+  const name = ctx.from.first_name || ctx.from.username || 'Pengguna';
+  
+  const welcomeMsg = await ctx.reply(
+    `👋 Halo <b>${name}</b>!\nSelamat datang di NeuroKas —\nasisten pencatatan kas & keuangan berbasis AI.`,
+    { parse_mode: 'HTML' }
+  );
+
+  const featureMsg = `✨ <b>Fitur NeuroKas</b>\n` +
+    `• Catat transaksi otomatis\n` +
+    `• Scan foto struk\n` +
+    `• Cek saldo & laporan\n` +
+    `• Insight AI keuangan\n\n` +
+    `📖 <b>Contoh penggunaan</b>\n` +
+    `"makan siang 25rb"\n` +
+    `"gaji masuk 5 juta"`;
+
+  await ctx.reply(featureMsg, {
+    parse_mode: 'HTML',
+    reply_parameters: { message_id: welcomeMsg.message_id },
+    reply_markup: {
+      inline_keyboard: [
+        [
+          { text: '➕ Catat Transaksi', callback_data: 'btn_catat' },
+          { text: '📷 Scan Struk', callback_data: 'btn_scan' }
+        ],
+        [
+          { text: '💰 Saldo', callback_data: 'btn_saldo' },
+          { text: '📊 Laporan', callback_data: 'btn_laporan' }
+        ],
+        [
+          { text: '🤖 AI Insight', callback_data: 'btn_insight' },
+          { text: '❓ Bantuan', callback_data: 'btn_bantuan' }
+        ]
+      ]
+    }
+  });
+});
+
+// Inline button actions (Placeholders for features not yet built)
+bot.action('btn_catat', (ctx) => ctx.reply('Silakan ketik transaksi Anda, contoh: "makan siang 25rb"'));
+bot.action('btn_scan', (ctx) => ctx.reply('Fitur 📷 Scan Struk segera hadir.'));
+bot.action('btn_saldo', async (ctx) => {
+  const result = await getBalance(ctx.from.id);
+  if (result.error) return ctx.reply('⚠️ Tidak dapat mengambil saldo.');
+  const balance = result.balance || 0;
+  const formatted = new Intl.NumberFormat('id-ID', { style: 'currency', currency: 'IDR' }).format(balance);
+  return ctx.reply(`💰 Saldo Anda: ${formatted}`);
+});
+bot.action('btn_laporan', (ctx) => ctx.reply('Fitur 📊 Laporan segera hadir.'));
+bot.action('btn_insight', (ctx) => ctx.reply('Fitur 🤖 AI Insight segera hadir.'));
+bot.action('btn_bantuan', (ctx) => ctx.reply('Cukup ketik pengeluaran atau pemasukan Anda secara langsung (contoh: "makan 20rb"), dan AI akan mencatatnya.'));
 
 // Helper to parse simple transaction messages like "makan siang 25rb"
 
