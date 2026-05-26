@@ -129,17 +129,22 @@ const sendMainMenu = async (ctx) => {
 
   const wsName = activeWorkspace ? activeWorkspace.name : 'Belum ada Kas';
   
-  const combinedMsg = `👋 Halo <b>${name}</b>!\n` +
+  const combinedMsg = `👋 Halo <b>${name}</b>!\n\n` +
     `Selamat datang di NeuroKas —\nasisten pencatatan kas & keuangan berbasis AI.\n\n` +
     `📂 Kas aktif: <b>${activeWorkspace?.icon || '📁'} ${wsName}</b>\n\n` +
     `<blockquote expandable>` +
-    `✨ <b>Quick Tips (Cara Pakai)</b>\n` +
-    `📉 <b>Pengeluaran</b> — awali dengan -\n` +
-    `"- makan siang 25rb"\n` +
-    `"- bayar listrik 350k"\n\n` +
-    `📈 <b>Pemasukan</b> — awali dengan +\n` +
-    `"+ gaji 10jt"\n` +
-    `"+ saldo awal 5juta"\n` +
+    `✨ <b>Fitur NeuroKas</b>\n\n` +
+    `• Catat transaksi otomatis\n` +
+    `• Scan foto struk\n` +
+    `• Cek saldo & laporan\n` +
+    `• Insight AI keuangan\n\n` +
+    `📖 <b>Contoh penggunaan</b>\n\n` +
+    `📉 <b>Pengeluaran</b> awali dengan (-)\n` +
+    `    "- makan siang 25rb"\n` +
+    `    "- bayar listrik 350k"\n\n` +
+    `📈 <b>Pemasukan</b> awali dengan (+)\n` +
+    `    "+ gaji 10jt"\n` +
+    `    "+ saldo awal 5juta"\n` +
     `⠀⠀⠀⠀⠀⠀⠀⠀⠀⠀⠀⠀⠀⠀⠀⠀⠀⠀⠀⠀⠀⠀⠀⠀` +
     `</blockquote>`;
 
