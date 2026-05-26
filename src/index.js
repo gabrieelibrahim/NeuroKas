@@ -133,9 +133,14 @@ bot.launch().then(async () => {
     { command: 'saldo', description: '💰 Cek Saldo' },
     { command: 'reset', description: '🗑️ Hapus Semua Catatan' },
   ]);
-  await bot.telegram.callApi('setChatMenuButton', {
-    menu_button: JSON.stringify({ type: 'commands' })
-  });
+  try {
+    await bot.telegram.callApi('setChatMenuButton', {
+      menu_button: { type: 'commands' }
+    });
+    logger.info('✅ Menu button set');
+  } catch (err) {
+    logger.error('❌ Gagal set menu button:', err.message);
+  }
   logger.info('🤖 Bot launched');
 });
 
