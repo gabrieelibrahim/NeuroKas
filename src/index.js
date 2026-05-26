@@ -40,12 +40,9 @@ bot.command('saldo', async (ctx) => {
 bot.start(async (ctx) => {
   const name = ctx.from.first_name || ctx.from.username || 'Pengguna';
   
-  const welcomeMsg = await ctx.reply(
-    `👋 Halo <b>${name}</b>!\nSelamat datang di NeuroKas —\nasisten pencatatan kas & keuangan berbasis AI.`,
-    { parse_mode: 'HTML' }
-  );
-
-  const featureMsg = `✨ <b>Fitur NeuroKas</b>\n` +
+  const combinedMsg = `👋 Halo <b>${name}</b>!\n` +
+    `Selamat datang di NeuroKas —\nasisten pencatatan kas & keuangan berbasis AI.\n\n` +
+    `✨ <b>Fitur NeuroKas</b>\n` +
     `• Catat transaksi otomatis\n` +
     `• Scan foto struk\n` +
     `• Cek saldo & laporan\n` +
@@ -54,9 +51,8 @@ bot.start(async (ctx) => {
     `"makan siang 25rb"\n` +
     `"gaji masuk 5 juta"`;
 
-  await ctx.reply(featureMsg, {
+  await ctx.reply(combinedMsg, {
     parse_mode: 'HTML',
-    reply_to_message_id: welcomeMsg.message_id,
     reply_markup: {
       inline_keyboard: [
         [
