@@ -108,4 +108,32 @@ async function resetTransactions(telegramId) {
   return { success: true };
 }
 
-module.exports = { saveTransaction, getBalance, resetTransactions };
+/**
+ * Get recent transactions for a given Telegram user.
+ * @param {number} telegramId
+ * @param {number} limit
+ */
+async function getRecentTransactions(telegramId, limit = 5) {
+  const { data: user, error: userErr } = await supabase
+    .from('User')
+    .select('id')
+    .eq('telegram_id', telegramId)
+    .single();
+
+  if (userErr && userErr.code === 'PGRST116') {
+    return { data: [] };
+  }
+  if (userErr) return { error: userErr };
+
+  const { data, error } = await supabase
+    .from('Transaction')
+    .select('*')
+    .eq('user_id', user.id)
+    .order('created_at', { ascending: false })
+    .limit(limit);
+    
+  if (error) return { error };
+  return { data };
+}
+
+module.exports = { saveTransaction, getBalance, resetTransactions, getRecentTransactions };

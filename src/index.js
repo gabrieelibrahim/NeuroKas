@@ -5,7 +5,7 @@ const pino = require('pino');
 const logger = pino();
 const rateLimit = require('telegraf-ratelimit');
 const { parseTransaction } = require('./parser');
-const { saveTransaction, getBalance, resetTransactions } = require('./db');
+const { saveTransaction, getBalance, resetTransactions, getRecentTransactions } = require('./db');
 
 const botToken = process.env.BOT_TOKEN;
 if (!botToken) {
@@ -47,6 +47,42 @@ bot.command('reset', async (ctx) => {
   }
   await ctx.reply('🗑️ Semua catatan transaksi (termasuk saldo awal) telah berhasil dihapus.\nSaldo Anda sekarang Rp0.');
 });
+
+// Laporan logic
+const handleLaporan = async (ctx) => {
+  const telId = ctx.from.id;
+  const [balanceRes, txnsRes] = await Promise.all([
+    getBalance(telId),
+    getRecentTransactions(telId, 5)
+  ]);
+  
+  if (balanceRes.error || txnsRes.error) {
+    return ctx.reply('⚠️ Terjadi kesalahan saat mengambil laporan.');
+  }
+  
+  const balance = balanceRes.balance || 0;
+  const txns = txnsRes.data || [];
+  
+  if (txns.length === 0) {
+    return ctx.reply('Belum ada catatan transaksi. Coba catat pengeluaran atau pemasukan pertama Anda!');
+  }
+  
+  let msg = `📊 <b>Laporan 5 Transaksi Terakhir</b>\n\n`;
+  txns.forEach((t) => {
+    const sign = t.type === 'income' ? '+' : '-';
+    const emoji = t.type === 'income' ? '📈' : '📉';
+    const amount = new Intl.NumberFormat('id-ID').format(t.amount);
+    msg += `${emoji} ${t.description}: ${sign}Rp${amount}\n`;
+  });
+  
+  const formattedBalance = new Intl.NumberFormat('id-ID', { style: 'currency', currency: 'IDR' }).format(balance);
+  msg += `\n💰 <b>Total Saldo: ${formattedBalance}</b>`;
+  
+  await ctx.reply(msg, { parse_mode: 'HTML' });
+};
+
+bot.command('laporan', handleLaporan);
+
 bot.start(async (ctx) => {
   const name = ctx.from.first_name || ctx.from.username || 'Pengguna';
   
@@ -104,7 +140,7 @@ bot.action('btn_saldo', async (ctx) => {
   const formatted = new Intl.NumberFormat('id-ID', { style: 'currency', currency: 'IDR' }).format(balance);
   return ctx.reply(`💰 Saldo Anda: ${formatted}`);
 });
-bot.action('btn_laporan', (ctx) => ctx.reply('Fitur 📊 Laporan segera hadir.'));
+bot.action('btn_laporan', handleLaporan);
 bot.action('btn_insight', (ctx) => ctx.reply('Fitur 🤖 AI Insight segera hadir.'));
 bot.action('btn_bantuan', (ctx) => ctx.reply('Cukup ketik pengeluaran atau pemasukan Anda secara langsung (contoh: "makan 20rb"), dan AI akan mencatatnya.'));
 
@@ -135,6 +171,7 @@ bot.launch().then(async () => {
   await bot.telegram.setMyCommands([
     { command: 'start', description: '🏠 Mulai & Lihat Menu' },
     { command: 'saldo', description: '💰 Cek Saldo' },
+    { command: 'laporan', description: '📊 Lihat Laporan Transaksi' },
     { command: 'reset', description: '🗑️ Hapus Semua Catatan' },
   ]);
   try {
