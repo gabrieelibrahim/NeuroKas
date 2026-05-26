@@ -79,9 +79,9 @@ bot.start(async (ctx) => {
   });
 });
 
-// Inline button actions (Placeholders for features not yet built)
-bot.action('btn_saldo_awal', (ctx) => ctx.reply('Fitur 🏦 Catat Saldo Awal segera hadir.'));
-bot.action('btn_catat', (ctx) => ctx.reply('Silakan ketik transaksi Anda, contoh: "makan siang 25rb"'));
+// Inline button actions
+bot.action('btn_saldo_awal', (ctx) => ctx.reply('Silakan ketik nominal saldo awal Anda.\nContoh: "+ saldo awal 5juta" atau "masuk saldo awal 5juta"'));
+bot.action('btn_catat', (ctx) => ctx.reply('Silakan ketik transaksi Anda.\nPengeluaran: "makan siang 25rb"\nPemasukan: "+ dapat bonus 50k"'));
 bot.action('btn_scan', (ctx) => ctx.reply('Fitur 📷 Scan Struk segera hadir.'));
 bot.action('btn_saldo', async (ctx) => {
   const result = await getBalance(ctx.from.id);
@@ -111,7 +111,10 @@ bot.on('text', async (ctx) => {
     await ctx.reply(`⚠️ Gagal menyimpan transaksi: ${errMsg}`);
     return;
   }
-  await ctx.reply(`✅ Tercatat: ${parsed.description} - Rp${parsed.amount.toLocaleString()}`);
+  
+  const typeLabel = parsed.type === 'income' ? '📈 Pemasukan' : '📉 Pengeluaran';
+  const sign = parsed.type === 'income' ? '+' : '-';
+  await ctx.reply(`✅ ${typeLabel}: ${parsed.description} (${sign}Rp${parsed.amount.toLocaleString()})`);
 });
 
 bot.launch().then(() => logger.info('🤖 Bot launched'));
