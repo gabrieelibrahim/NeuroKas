@@ -10,7 +10,7 @@ function parseTransaction(message) {
     textToParse = textToParse.substring(1).trim();
   }
   
-  const regex = /(.+?)\s+([\d.,]+)\s*(rb|k|ribu|juta|jt)?/i;
+  const regex = /^(?:(.+?)\s+)?([\d.,]+)\s*(rb|k|ribu|juta|jt)?$/i;
   const match = textToParse.match(regex);
   if (!match) return null;
   
@@ -20,7 +20,7 @@ function parseTransaction(message) {
   else if (unit.startsWith('juta') || unit.startsWith('jt')) amount = parseInt(amount) * 1000000;
   else amount = parseInt(amount);
 
-  let description = match[1].trim();
+  let description = match[1] ? match[1].trim() : (type === 'income' ? 'Pemasukan' : 'Pengeluaran');
   
   if (type === 'expense') {
     const lowerDesc = description.toLowerCase();
