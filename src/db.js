@@ -93,6 +93,19 @@ async function saveTransaction(telegramId, txn) {
   return { data, activeWorkspace, error };
 }
 
+async function deleteTransaction(telegramId, transactionId) {
+  const { user, error: ctxErr } = await getUserContext(telegramId);
+  if (ctxErr) return { error: ctxErr };
+  
+  const { error } = await supabase
+    .from('Transaction')
+    .delete()
+    .eq('id', transactionId)
+    .eq('user_id', user.id);
+    
+  return { error };
+}
+
 async function getBalance(telegramId) {
   const { user, activeWorkspace, error: ctxErr } = await getUserContext(telegramId);
   if (ctxErr) return { error: ctxErr };
@@ -237,6 +250,7 @@ async function deleteWorkspace(telegramId, workspaceId) {
 module.exports = { 
   getUserContext,
   saveTransaction, 
+  deleteTransaction,
   getBalance, 
   resetTransactions, 
   getRecentTransactions,

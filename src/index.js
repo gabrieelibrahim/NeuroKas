@@ -378,7 +378,9 @@ bot.on('text', async (ctx) => {
     }
     
     const sign = parsed.type === 'income' ? '+' : '-';
-    const m = await ctx.reply(`✅ Saldo awal berhasil ditambahkan (${sign}Rp${parsed.amount.toLocaleString('id-ID')})\n📂 [${activeWorkspace.name}]`);
+    const m = await ctx.reply(`✅ Saldo awal berhasil ditambahkan (${sign}Rp${parsed.amount.toLocaleString('id-ID')})\n📂 [${activeWorkspace.name}]`, {
+      reply_markup: { inline_keyboard: [[{ text: '↩️ Batal (Undo)', callback_data: `undo_txn_${data.id}` }]] }
+    });
     trackMessage(ctx.from.id, m.message_id);
     return sendMainMenu(ctx);
   }
@@ -417,8 +419,22 @@ bot.on('text', async (ctx) => {
 
   const typeLabel = parsed.type === 'income' ? '📈 Pemasukan' : '📉 Pengeluaran';
   const sign = parsed.type === 'income' ? '+' : '-';
-  const m = await ctx.reply(`✅ ${typeLabel}: ${parsed.description} (${sign}Rp${parsed.amount.toLocaleString('id-ID')})\n📂 [${activeWorkspace.name}]`);
+  const m = await ctx.reply(`✅ ${typeLabel}: ${parsed.description} (${sign}Rp${parsed.amount.toLocaleString('id-ID')})\n📂 [${activeWorkspace.name}]`, {
+    reply_markup: { inline_keyboard: [[{ text: '↩️ Batal (Undo)', callback_data: `undo_txn_${data.id}` }]] }
+  });
   trackMessage(ctx.from.id, m.message_id);
+});
+
+bot.action(/undo_txn_(.+)/, async (ctx) => {
+  const txnId = ctx.match[1];
+  const { deleteTransaction } = require('./db');
+  
+  const { error } = await deleteTransaction(ctx.from.id, txnId);
+  if (error) {
+    return sendOrEdit(ctx, '⚠️ Gagal membatalkan transaksi atau transaksi sudah dihapus.');
+  }
+  
+  await sendOrEdit(ctx, '✅ Transaksi berhasil dibatalkan (Undo).');
 });
 
 bot.launch().then(async () => {
