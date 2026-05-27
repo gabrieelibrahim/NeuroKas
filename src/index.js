@@ -98,7 +98,8 @@ bot.command('export', async (ctx) => {
   }
   
   // Menggunakan titik koma (;) agar lebih rapi saat dibuka di Excel versi Indonesia
-  let csvContent = 'Tanggal;Jam;Tipe;Nominal;Kategori;Keterangan\\n';
+  const rows = [];
+  rows.push('Tanggal;Jam;Tipe;Nominal;Kategori;Keterangan');
   txns.forEach(t => {
     const date = new Date(t.created_at);
     const dateStr = date.toLocaleDateString('id-ID');
@@ -108,17 +109,19 @@ bot.command('export', async (ctx) => {
     // escape quotes in description
     const desc = (t.description || '').replace(/"/g, '""');
     
-    csvContent += `"${dateStr}";"${timeStr}";"${typeStr}";"${t.amount}";"${t.category}";"${desc}"\\n`;
+    rows.push(`"${dateStr}";"${timeStr}";"${typeStr}";"${t.amount}";"${t.category}";"${desc}"`);
   });
   
+  const csvContent = rows.join('\n') + '\n';
+  
   // Tambahkan BOM agar Excel mendeteksi UTF-8 dengan benar
-  const bom = Buffer.from('\\uFEFF', 'utf-8');
+  const bom = Buffer.from([0xEF, 0xBB, 0xBF]);
   const csvBuffer = Buffer.from(csvContent, 'utf-8');
   
   try {
     const m = await ctx.replyWithDocument({
       source: Buffer.concat([bom, csvBuffer]),
-      filename: `Laporan_${activeWorkspace.name.replace(/\\s+/g, '_')}.csv`
+      filename: `Laporan_${activeWorkspace.name.replace(/\s+/g, '_')}.csv`
     }, { caption: `✅ Laporan format CSV untuk kas [${activeWorkspace.name}] siap!` });
     trackMessage(ctx.from.id, m.message_id);
   } catch (err) {
