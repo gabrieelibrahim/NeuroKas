@@ -129,7 +129,7 @@ async function getAllTransactions(telegramId) {
     .select('*')
     .eq('user_id', user.id)
     .eq('workspace_id', activeWorkspace.id)
-    .order('created_at', { ascending: false });
+    .order('created_at', { ascending: true });
     
   if (error) return { error };
   return { data, activeWorkspace };

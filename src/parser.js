@@ -10,17 +10,37 @@ function parseTransaction(message) {
     textToParse = textToParse.substring(1).trim();
   }
   
-  const regex = /^(?:(.+?)\s+)?([\d.,]+)\s*(rb|k|ribu|juta|jt)?$/i;
-  const match = textToParse.match(regex);
-  if (!match) return null;
+  // Try matching amount at the end: "makan 20k"
+  let regexEnd = /^(.*?)\s*([\d.,]+)\s*(rb|k|ribu|juta|jt)?$/i;
+  // Try matching amount at the start: "20k makan"
+  let regexStart = /^([\d.,]+)\s*(rb|k|ribu|juta|jt)?\s+(.*)$/i;
   
-  let amount = match[2].replace(/[.,]/g, '');
-  const unit = match[3] ? match[3].toLowerCase() : '';
+  let match = textToParse.match(regexEnd);
+  let amountStr, unit, description;
+
+  if (match) {
+    description = match[1] ? match[1].trim() : '';
+    amountStr = match[2];
+    unit = match[3] ? match[3].toLowerCase() : '';
+  } else {
+    match = textToParse.match(regexStart);
+    if (match) {
+      amountStr = match[1];
+      unit = match[2] ? match[2].toLowerCase() : '';
+      description = match[3] ? match[3].trim() : '';
+    } else {
+      return null;
+    }
+  }
+
+  if (!description) {
+    description = type === 'income' ? 'Pemasukan' : 'Pengeluaran';
+  }
+  
+  let amount = amountStr.replace(/[.,]/g, '');
   if (unit.startsWith('rb') || unit.startsWith('ribu') || unit.startsWith('k')) amount = parseInt(amount) * 1000;
   else if (unit.startsWith('juta') || unit.startsWith('jt')) amount = parseInt(amount) * 1000000;
   else amount = parseInt(amount);
-
-  let description = match[1] ? match[1].trim() : (type === 'income' ? 'Pemasukan' : 'Pengeluaran');
   
   if (type === 'expense') {
     const lowerDesc = description.toLowerCase();
