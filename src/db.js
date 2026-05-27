@@ -120,6 +120,21 @@ async function getRecentTransactions(telegramId, limit = 5) {
   return { data, activeWorkspace };
 }
 
+async function getAllTransactions(telegramId) {
+  const { user, activeWorkspace, error: ctxErr } = await getUserContext(telegramId);
+  if (ctxErr) return { error: ctxErr };
+
+  const { data, error } = await supabase
+    .from('Transaction')
+    .select('*')
+    .eq('user_id', user.id)
+    .eq('workspace_id', activeWorkspace.id)
+    .order('created_at', { ascending: false });
+    
+  if (error) return { error };
+  return { data, activeWorkspace };
+}
+
 async function resetTransactions(telegramId) {
   const { user, activeWorkspace, error: ctxErr } = await getUserContext(telegramId);
   if (ctxErr) return { error: ctxErr };
@@ -225,6 +240,7 @@ module.exports = {
   getBalance, 
   resetTransactions, 
   getRecentTransactions,
+  getAllTransactions,
   getWorkspaces,
   setActiveWorkspace,
   createWorkspace,

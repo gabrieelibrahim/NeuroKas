@@ -10,6 +10,7 @@ const {
   getBalance, 
   resetTransactions, 
   getRecentTransactions,
+  getAllTransactions,
   getWorkspaces,
   setActiveWorkspace,
   createWorkspace,
@@ -159,7 +160,7 @@ const sendMainMenu = async (ctx) => {
           { text: '📊 Laporan', callback_data: 'btn_laporan' }
         ],
         [
-          { text: '🤖 AI Insight', callback_data: 'btn_insight' },
+          { text: '📥 Download CSV', callback_data: 'btn_export' },
           { text: '📂 Ganti Kas', callback_data: 'btn_ganti_kas' }
         ]
       ]
@@ -212,10 +213,50 @@ bot.action('btn_laporan', async (ctx) => {
   await ctx.deleteMessage().catch(() => {});
   return handleLaporan(ctx);
 });
-bot.action('btn_insight', async (ctx) => {
+
+bot.action('btn_export', async (ctx) => {
   await ctx.deleteMessage().catch(() => {});
-  const m = await ctx.reply('Fitur 🤖 AI Insight khusus untuk workspace sedang dipersiapkan.', backMarkup);
-  trackMessage(ctx.from.id, m.message_id);
+  
+  const { data: txns, activeWorkspace, error } = await getAllTransactions(ctx.from.id);
+  if (error || !txns) {
+    const m = await ctx.reply('⚠️ Gagal mengambil data transaksi.', backMarkup);
+    trackMessage(ctx.from.id, m.message_id);
+    return;
+  }
+  
+  if (txns.length === 0) {
+    const m = await ctx.reply(`Belum ada transaksi di [${activeWorkspace.name}].`, backMarkup);
+    trackMessage(ctx.from.id, m.message_id);
+    return;
+  }
+  
+  let csvContent = 'Tanggal,Jam,Tipe,Nominal,Kategori,Keterangan\\n';
+  txns.forEach(t => {
+    const date = new Date(t.created_at);
+    const dateStr = date.toLocaleDateString('id-ID');
+    const timeStr = date.toLocaleTimeString('id-ID');
+    const typeStr = t.type === 'income' ? 'Pemasukan' : 'Pengeluaran';
+    
+    // escape quotes in description
+    const desc = (t.description || '').replace(/"/g, '""');
+    
+    csvContent += `"${dateStr}","${timeStr}","${typeStr}","${t.amount}","${t.category}","${desc}"\\n`;
+  });
+  
+  try {
+    const m = await ctx.replyWithDocument({
+      source: Buffer.from(csvContent, 'utf-8'),
+      filename: `Laporan_${activeWorkspace.name.replace(/\\s+/g, '_')}.csv`
+    }, { caption: `✅ Laporan format CSV untuk kas [${activeWorkspace.name}] siap!` });
+    trackMessage(ctx.from.id, m.message_id);
+    
+    // Also send back menu
+    const m2 = await ctx.reply('Kembali ke menu utama:', backMarkup);
+    trackMessage(ctx.from.id, m2.message_id);
+  } catch (err) {
+    logger.error('Error sending CSV', err);
+    ctx.reply('⚠️ Terjadi kesalahan saat mengirim file CSV.', backMarkup);
+  }
 });
 
 bot.action('btn_ganti_kas', async (ctx) => {
