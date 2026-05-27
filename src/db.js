@@ -184,6 +184,41 @@ async function createWorkspace(telegramId, name, icon = '📂') {
   return { data, error };
 }
 
+async function deleteWorkspace(telegramId, workspaceId) {
+  const { data: user, error: userErr } = await supabase
+    .from('User')
+    .select('id, active_workspace_id')
+    .eq('telegram_id', telegramId)
+    .single();
+  if (userErr) return { error: userErr };
+
+  const { data: workspaces } = await supabase
+    .from('Workspace')
+    .select('id')
+    .eq('owner_id', user.id);
+    
+  if (workspaces && workspaces.length <= 1) {
+    return { error: new Error('Tidak bisa menghapus satu-satunya kas Anda.') };
+  }
+
+  const { error } = await supabase
+    .from('Workspace')
+    .delete()
+    .eq('id', workspaceId)
+    .eq('owner_id', user.id);
+    
+  if (error) return { error };
+
+  if (user.active_workspace_id === workspaceId) {
+    const nextWs = workspaces.find(w => w.id !== workspaceId);
+    if (nextWs) {
+      await setActiveWorkspace(telegramId, nextWs.id);
+    }
+  }
+  
+  return { success: true };
+}
+
 module.exports = { 
   getUserContext,
   saveTransaction, 
@@ -192,5 +227,6 @@ module.exports = {
   getRecentTransactions,
   getWorkspaces,
   setActiveWorkspace,
-  createWorkspace
+  createWorkspace,
+  deleteWorkspace
 };

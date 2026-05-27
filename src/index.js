@@ -12,7 +12,8 @@ const {
   getRecentTransactions,
   getWorkspaces,
   setActiveWorkspace,
-  createWorkspace
+  createWorkspace,
+  deleteWorkspace
 } = require('./db');
 
 const botToken = process.env.BOT_TOKEN;
@@ -235,7 +236,7 @@ bot.action('btn_ganti_kas', async (ctx) => {
     }];
   });
   
-  buttons.push([{ text: '➕ Buat Kas Baru', callback_data: 'btn_new_kas' }]);
+  buttons.push([{ text: '➕ Buat Kas Baru', callback_data: 'btn_new_kas' }, { text: '🗑 Hapus Kas', callback_data: 'btn_hapus_kas_menu' }]);
   buttons.push([{ text: '🔙 Kembali', callback_data: 'btn_back' }]);
   
   const m = await ctx.reply('📂 Pilih Kas yang ingin Anda gunakan:', {
@@ -250,6 +251,47 @@ bot.action(/sel_ws_(.+)/, async (ctx) => {
   const wsId = ctx.match[1];
   await setActiveWorkspace(ctx.from.id, wsId);
   await ctx.answerCbQuery('✅ Kas berhasil diganti');
+  await ctx.deleteMessage().catch(() => {});
+  await sendMainMenu(ctx);
+});
+
+bot.action('btn_hapus_kas_menu', async (ctx) => {
+  await ctx.deleteMessage().catch(() => {});
+  const { data: workspaces, error } = await getWorkspaces(ctx.from.id);
+  if (error || !workspaces) {
+    const m = await ctx.reply('⚠️ Gagal mengambil daftar Kas.', backMarkup);
+    trackMessage(ctx.from.id, m.message_id);
+    return;
+  }
+  
+  if (workspaces.length <= 1) {
+    const m = await ctx.reply('⚠️ Anda hanya memiliki 1 Kas. Buat kas baru terlebih dahulu sebelum menghapus.', backMarkup);
+    trackMessage(ctx.from.id, m.message_id);
+    return;
+  }
+  
+  const buttons = workspaces.map(ws => {
+    return [{
+      text: `🗑 Hapus ${ws.name}`,
+      callback_data: `del_ws_${ws.id}`
+    }];
+  });
+  buttons.push([{ text: '🔙 Batal', callback_data: 'btn_ganti_kas' }]);
+  
+  const m = await ctx.reply('⚠️ Pilih Kas yang ingin Anda HAPUS PERMANEN beserta seluruh transaksinya:', {
+    reply_markup: { inline_keyboard: buttons }
+  });
+  trackMessage(ctx.from.id, m.message_id);
+});
+
+bot.action(/del_ws_(.+)/, async (ctx) => {
+  const wsId = ctx.match[1];
+  const { error } = await deleteWorkspace(ctx.from.id, wsId);
+  if (error) {
+    await ctx.answerCbQuery(error.message || '⚠️ Gagal menghapus kas');
+    return;
+  }
+  await ctx.answerCbQuery('✅ Kas berhasil dihapus');
   await ctx.deleteMessage().catch(() => {});
   await sendMainMenu(ctx);
 });
