@@ -155,22 +155,36 @@ const handleLaporan = async (ctx) => {
   const formattedBalance = new Intl.NumberFormat('id-ID', { style: 'currency', currency: 'IDR' }).format(balance);
   msg += `\n💰 <b>Total Saldo: ${formattedBalance}</b></blockquote>`;
   
-  const m = await ctx.reply(msg, { 
+  await sendOrEdit(ctx, msg, { 
     parse_mode: 'HTML',
     reply_markup: { inline_keyboard: [[{ text: '🔙 Kembali', callback_data: 'btn_back' }]] }
   });
-  trackMessage(telId, m.message_id);
 };
 
 bot.command('laporan', handleLaporan);
 
+async function sendOrEdit(ctx, text, options) {
+  if (ctx.callbackQuery) {
+    try {
+      await ctx.editMessageText(text, options);
+      return;
+    } catch (e) {
+      // fallback if edit fails
+    }
+  }
+  const m = await ctx.reply(text, options);
+  if (ctx.from) trackMessage(ctx.from.id, m.message_id);
+}
+
 const sendMainMenu = async (ctx) => {
-  const telId = ctx.from.id;
-  const name = ctx.from?.first_name || ctx.from?.username || 'Pengguna';
+  const telId = ctx.from?.id;
+  if (!telId) return;
+  
+  const name = ctx.from?.first_name || 'Pengguna';
   
   const { activeWorkspace, error } = await getUserContext(telId);
   if (error) {
-    return ctx.reply('⚠️ Gagal memuat data kas.');
+    return sendOrEdit(ctx, '⚠️ Gagal memuat data kas.');
   }
 
   const wsName = activeWorkspace ? activeWorkspace.name : 'Belum ada Kas';
@@ -194,7 +208,7 @@ const sendMainMenu = async (ctx) => {
     `⠀⠀⠀⠀⠀⠀⠀⠀⠀⠀⠀⠀⠀⠀⠀⠀⠀⠀⠀⠀⠀⠀⠀⠀` +
     `</blockquote>`;
 
-  const m = await ctx.reply(combinedMsg, {
+  await sendOrEdit(ctx, combinedMsg, {
     parse_mode: 'HTML',
     reply_markup: {
       inline_keyboard: [
@@ -216,9 +230,8 @@ const sendMainMenu = async (ctx) => {
       ]
     }
   });
-  
-  trackMessage(telId, m.message_id);
 };
+
 
 bot.start(async (ctx) => {
   await cleanChat(ctx);
@@ -228,56 +241,44 @@ bot.start(async (ctx) => {
 const backMarkup = { reply_markup: { inline_keyboard: [[{ text: '🔙 Kembali', callback_data: 'btn_back' }]] } };
 
 bot.action('btn_back', async (ctx) => {
-  await ctx.deleteMessage().catch(() => {});
   return sendMainMenu(ctx);
 });
 
 bot.action('btn_saldo_awal', async (ctx) => {
-  await ctx.deleteMessage().catch(() => {});
-  userState.set(ctx.from.id, 'WAITING_SALDO_AWAL');
-  const m = await ctx.reply('Silakan masukkan nominal saldo awal Anda (contoh: 50000 atau 50k):', {
+  await sendOrEdit(ctx, 'Silakan masukkan nominal saldo awal Anda (contoh: 50000 atau 50k):', {
     reply_markup: { inline_keyboard: [[{ text: '❌ Batal', callback_data: 'btn_cancel_kas' }]] }
   });
-  trackMessage(ctx.from.id, m.message_id);
+  userState.set(ctx.from.id, 'WAITING_SALDO_AWAL');
 });
 
 bot.action('btn_catat', async (ctx) => {
-  await ctx.deleteMessage().catch(() => {});
-  const m = await ctx.reply('Silakan ketik transaksi Anda.\nPengeluaran: "- makan siang 25rb"\nPemasukan: "+ dapat bonus 50k"', backMarkup);
-  trackMessage(ctx.from.id, m.message_id);
+  await sendOrEdit(ctx, 'Silakan ketik transaksi Anda.\nPengeluaran: "- makan siang 25rb"\nPemasukan: "+ dapat bonus 50k"', backMarkup);
 });
+
 bot.action('btn_scan', async (ctx) => {
-  await ctx.deleteMessage().catch(() => {});
-  const m = await ctx.reply('Fitur 📷 Scan Struk (NeuroKas Pro) segera hadir.', backMarkup);
-  trackMessage(ctx.from.id, m.message_id);
+  await sendOrEdit(ctx, 'Fitur 📷 Scan Struk (NeuroKas Pro) segera hadir.', backMarkup);
 });
+
 bot.action('btn_saldo', async (ctx) => {
-  await ctx.deleteMessage().catch(() => {});
   const { balance, activeWorkspace, error } = await getBalance(ctx.from.id);
-  if (error) return ctx.reply('⚠️ Tidak dapat mengambil saldo.', backMarkup);
+  if (error) return sendOrEdit(ctx, '⚠️ Tidak dapat mengambil saldo.', backMarkup);
   const formatted = new Intl.NumberFormat('id-ID', { style: 'currency', currency: 'IDR' }).format(balance || 0);
-  const m = await ctx.reply(`💰 Saldo [${activeWorkspace.name}]: ${formatted}`, backMarkup);
-  trackMessage(ctx.from.id, m.message_id);
+  await sendOrEdit(ctx, `💰 Saldo [${activeWorkspace.name}]: ${formatted}`, backMarkup);
 });
+
 bot.action('btn_laporan', async (ctx) => {
-  await ctx.deleteMessage().catch(() => {});
   return handleLaporan(ctx);
 });
 
 bot.action('btn_insight', async (ctx) => {
-  await ctx.deleteMessage().catch(() => {});
-  const m = await ctx.reply('Fitur 🤖 AI Insight khusus untuk workspace sedang dipersiapkan.', backMarkup);
-  trackMessage(ctx.from.id, m.message_id);
+  await sendOrEdit(ctx, 'Fitur 🤖 AI Insight khusus untuk workspace sedang dipersiapkan.', backMarkup);
 });
 
 bot.action('btn_ganti_kas', async (ctx) => {
-  await ctx.deleteMessage().catch(() => {});
   const { data: workspaces, activeWorkspaceId, error } = await getWorkspaces(ctx.from.id);
   
   if (error || !workspaces) {
-    const m = await ctx.reply('⚠️ Gagal mengambil daftar Kas.', backMarkup);
-    trackMessage(ctx.from.id, m.message_id);
-    return;
+    return sendOrEdit(ctx, '⚠️ Gagal mengambil daftar Kas.', backMarkup);
   }
   
   const buttons = workspaces.map(ws => {
@@ -291,35 +292,28 @@ bot.action('btn_ganti_kas', async (ctx) => {
   buttons.push([{ text: '➕ Buat Kas Baru', callback_data: 'btn_new_kas' }, { text: '🗑 Hapus Kas', callback_data: 'btn_hapus_kas_menu' }]);
   buttons.push([{ text: '🔙 Kembali', callback_data: 'btn_back' }]);
   
-  const m = await ctx.reply('📂 Pilih Kas yang ingin Anda gunakan:', {
+  await sendOrEdit(ctx, '📂 Pilih Kas yang ingin Anda gunakan:', {
     reply_markup: {
       inline_keyboard: buttons
     }
   });
-  trackMessage(ctx.from.id, m.message_id);
 });
 
 bot.action(/sel_ws_(.+)/, async (ctx) => {
   const wsId = ctx.match[1];
   await setActiveWorkspace(ctx.from.id, wsId);
   await ctx.answerCbQuery('✅ Kas berhasil diganti');
-  await ctx.deleteMessage().catch(() => {});
   await sendMainMenu(ctx);
 });
 
 bot.action('btn_hapus_kas_menu', async (ctx) => {
-  await ctx.deleteMessage().catch(() => {});
   const { data: workspaces, error } = await getWorkspaces(ctx.from.id);
   if (error || !workspaces) {
-    const m = await ctx.reply('⚠️ Gagal mengambil daftar Kas.', backMarkup);
-    trackMessage(ctx.from.id, m.message_id);
-    return;
+    return sendOrEdit(ctx, '⚠️ Gagal mengambil daftar Kas.', backMarkup);
   }
   
   if (workspaces.length <= 1) {
-    const m = await ctx.reply('⚠️ Anda hanya memiliki 1 Kas. Buat kas baru terlebih dahulu sebelum menghapus.', backMarkup);
-    trackMessage(ctx.from.id, m.message_id);
-    return;
+    return sendOrEdit(ctx, '⚠️ Anda hanya memiliki 1 Kas. Buat kas baru terlebih dahulu sebelum menghapus.', backMarkup);
   }
   
   const buttons = workspaces.map(ws => {
@@ -330,10 +324,9 @@ bot.action('btn_hapus_kas_menu', async (ctx) => {
   });
   buttons.push([{ text: '🔙 Batal', callback_data: 'btn_ganti_kas' }]);
   
-  const m = await ctx.reply('⚠️ Pilih Kas yang ingin Anda HAPUS PERMANEN beserta seluruh transaksinya:', {
+  await sendOrEdit(ctx, '⚠️ Pilih Kas yang ingin Anda HAPUS PERMANEN beserta seluruh transaksinya:', {
     reply_markup: { inline_keyboard: buttons }
   });
-  trackMessage(ctx.from.id, m.message_id);
 });
 
 bot.action(/del_ws_(.+)/, async (ctx) => {
@@ -344,7 +337,6 @@ bot.action(/del_ws_(.+)/, async (ctx) => {
     return;
   }
   await ctx.answerCbQuery('✅ Kas berhasil dihapus');
-  await ctx.deleteMessage().catch(() => {});
   await sendMainMenu(ctx);
 });
 
@@ -352,17 +344,14 @@ bot.action(/del_ws_(.+)/, async (ctx) => {
 const userState = new Map();
 
 bot.action('btn_new_kas', async (ctx) => {
-  await ctx.deleteMessage().catch(() => {});
-  userState.set(ctx.from.id, 'WAITING_KAS_NAME');
-  const m = await ctx.reply('Silakan ketik NAMA KAS BARU yang ingin Anda buat (contoh: "Kas Komunitas A"):', {
+  await sendOrEdit(ctx, 'Silakan ketik NAMA KAS BARU yang ingin Anda buat (contoh: "Kas Komunitas A"):', {
     reply_markup: { inline_keyboard: [[{ text: '❌ Batal', callback_data: 'btn_cancel_kas' }]] }
   });
-  trackMessage(ctx.from.id, m.message_id);
+  userState.set(ctx.from.id, 'WAITING_KAS_NAME');
 });
 
 bot.action('btn_cancel_kas', async (ctx) => {
   userState.delete(ctx.from.id);
-  await ctx.deleteMessage().catch(() => {});
   return sendMainMenu(ctx);
 });
 
