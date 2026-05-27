@@ -155,7 +155,10 @@ const handleLaporan = async (ctx) => {
   const formattedBalance = new Intl.NumberFormat('id-ID', { style: 'currency', currency: 'IDR' }).format(balance);
   msg += `\n💰 <b>Total Saldo: ${formattedBalance}</b></blockquote>`;
   
-  const m = await ctx.reply(msg, { parse_mode: 'HTML' });
+  const m = await ctx.reply(msg, { 
+    parse_mode: 'HTML',
+    reply_markup: { inline_keyboard: [[{ text: '🔙 Kembali', callback_data: 'btn_back' }]] }
+  });
   trackMessage(telId, m.message_id);
 };
 
